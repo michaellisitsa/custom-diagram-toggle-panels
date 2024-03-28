@@ -1,45 +1,42 @@
 export async function initialize(getStoredParams, setStoredParams) {
+    // Attach event handler to root element that contains all panels
     document.getElementById("group")?.addEventListener("click", (event) => {
-        const storedParams = getStoredParams();
+        // Call getStoredParams() inside of event listener callback rather than at top level
+        // to avoid stale closures
+        const { removedPanels } = getStoredParams();
         const elements = document.getElementsByClassName("panel");
-        let includesTarget = Array.from(elements).includes(
+        if (Array.from(elements).includes(
             event.target as Element,
-        );
-        if (includesTarget) {
+        )) {
             const idx = (event.target as Element).id;
-            let newRemovedPanels: number[] = Array.from(elements).map(
-                (el) => 0,
-            );
-            let maxPanelsIdx = newRemovedPanels.length - 1;
-            if (storedParams.removedPanels) {
-                const storedParamsMaxIndex =
-                    storedParams.removedPanels.length - 1;
-                if (storedParamsMaxIndex > maxPanelsIdx) {
-                    newRemovedPanels.splice(
-                        0,
-                        maxPanelsIdx + 1,
-                        ...storedParams.removedPanels.slice(
-                            0,
-                            maxPanelsIdx + 1,
-                        ),
-                    );
+            // params are not available in initialize function,
+            // We can derive length of panelsX from number of rendered DOM elements.
+            // Alternatively we could save panelsX in a variable in module scope.
+            let newPanels: number[] = Array.from(elements).map((el) => 0);
+            if (removedPanels) {
+                if (removedPanels.length > newPanels.length) {
+                    // The number of panels has decreased than were present
+                    // when the user last interacted with the diagram
+                    // We need to remove the extra elements from the stored array
+                    newPanels = removedPanels.slice(0, newPanels.length);
                 } else {
-                    newRemovedPanels.splice(
-                        0,
-                        storedParamsMaxIndex + 1,
-                        ...storedParams.removedPanels,
-                    );
+                    // The number of panels has increased than were present
+                    // when the user last interacted with the diagram
+                    // or has stayed the same.
+                    newPanels.splice(0, removedPanels.length, ...removedPanels);
                 }
             }
-            newRemovedPanels[idx] = newRemovedPanels[idx] === 1 ? 0 : 1;
+            // Toggle the currently selected removed panel
+            newPanels[idx] = newPanels[idx] === 1 ? 0 : 1;
             setStoredParams({
-                removedPanels: newRemovedPanels,
+                removedPanels: newPanels,
             });
         }
     });
 }
 
 export async function render(params, getStoredParams) {
+    // Adjust the viewbox to fit the height of the panels
     document
         .getElementById("svg")
         ?.setAttribute("viewBox", `0 0 500 ${50 + 25 * params.panelsX.length}`);
@@ -47,10 +44,15 @@ export async function render(params, getStoredParams) {
     if (!!params.panelsX) {
         const el = document.getElementById("toggle");
         const group = document.getElementById("group");
+        // Replace all children of the group with new panels
+        // rather than bothering with diffing panels.
         group?.replaceChildren(
             ...params.panelsX.map((panel, idx) => {
+                // Use a def to define the panel once and reuse it
                 const thisPanel = el?.cloneNode(true) as SVGElement;
                 thisPanel?.setAttribute("id", `${idx}`);
+                // Set up a common selector that can be used to identify all panels
+                // within the event listener callback
                 thisPanel?.setAttribute("class", `panel`);
                 thisPanel?.setAttribute("y", (idx * 25).toString());
                 if (storedParams.removedPanels?.[idx] === 1) {
@@ -69,8 +71,5 @@ export async function params() {
 }
 
 export async function storedParams() {
-    return [
-        // // EXAMPLE (USER INTERACTION)
-        { key: "removedPanels", type: "Array<number>" },
-    ];
+    return [{ key: "removedPanels", type: "Array<number>" }];
 }
