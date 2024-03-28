@@ -25,12 +25,6 @@ body {
     max-height: 400px;
 }
 
-#circle,
-#rect,
-#triangle {
-    transition: fill 1s, stroke 1s;
-}
-
-#circle {
+.panel {
     cursor: pointer;
 }
